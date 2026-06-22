@@ -108,12 +108,34 @@ export async function POST(request: Request) {
       validatedRequest.content
     )
 
-    // Use AI to extract structured data from the document content
-    const result = await generateObject({
-      model: anthropic('claude-3-5-sonnet-20241022'),
-      schema: ExtractionResultSchema,
-      prompt,
-    })
+    // Check if demo mode is enabled (for testing without API credits)
+    const isDemoMode = process.env.DEMO_MODE === 'true'
+
+    let result
+    if (isDemoMode) {
+      // Demo mode: return mock extraction results
+      const mockData = {
+        object: {
+          documentType: getDocumentTypeFromMimeType(validatedRequest.mimeType, validatedRequest.fileName),
+          extractedData: {
+            fileName: validatedRequest.fileName,
+            content_preview: validatedRequest.content.substring(0, 200),
+            processing_mode: 'DEMO',
+            note: 'This is demo data. Connect a valid Anthropic API key to enable real document processing.',
+          },
+          confidence: 0.75,
+          rawText: validatedRequest.content,
+        },
+      }
+      result = mockData
+    } else {
+      // Use AI to extract structured data from the document content
+      result = await generateObject({
+        model: anthropic('claude-3-5-sonnet-20241022'),
+        schema: ExtractionResultSchema,
+        prompt,
+      })
+    }
 
     const processingTime = Date.now() - startTime
 
@@ -125,14 +147,16 @@ export async function POST(request: Request) {
       processingTime,
     })
   } catch (error) {
-    console.error('Extraction error:', error)
+    console.error('[v0] Extraction error:', error)
     let errorMessage = 'Failed to process document'
     
     if (error instanceof Error) {
       errorMessage = error.message
       // Handle specific API errors
-      if (error.message.includes('credit balance')) {
-        errorMessage = 'Insufficient API credits. Please check your Anthropic account balance.'
+      if (error.message.includes('credit balance') || error.message.includes('Insufficient')) {
+        errorMessage = 'Insufficient API credits. Please check your Anthropic account has credits available.'
+      } else if (error.message.includes('authentication') || error.message.includes('invalid')) {
+        errorMessage = 'Authentication failed. Please verify your API key is correct.'
       } else if (error.message.includes('API')) {
         errorMessage = `API Error: ${error.message}`
       }
