@@ -118,13 +118,28 @@ export async function POST(request: Request) {
     const processingTime = Date.now() - startTime
 
     return Response.json({
-      ...result.object,
+      documentType: result.object.documentType,
+      extractedData: result.object.extractedData,
+      confidence: result.object.confidence,
+      rawText: result.object.rawText,
       processingTime,
     })
   } catch (error) {
     console.error('Extraction error:', error)
+    let errorMessage = 'Failed to process document'
+    
+    if (error instanceof Error) {
+      errorMessage = error.message
+      // Handle specific API errors
+      if (error.message.includes('credit balance')) {
+        errorMessage = 'Insufficient API credits. Please check your Anthropic account balance.'
+      } else if (error.message.includes('API')) {
+        errorMessage = `API Error: ${error.message}`
+      }
+    }
+    
     return Response.json(
-      { error: 'Failed to process document' },
+      { error: errorMessage },
       { status: 500 }
     )
   }
