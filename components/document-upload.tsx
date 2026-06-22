@@ -41,11 +41,11 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
       ) {
         // For PDFs, convert to base64 for Claude's vision capability
         const buffer = await file.arrayBuffer()
-        content = Buffer.from(buffer).toString('base64')
+        content = arrayBufferToBase64(buffer)
       } else if (file.type.startsWith('image/')) {
         // For images, convert to base64
         const buffer = await file.arrayBuffer()
-        content = Buffer.from(buffer).toString('base64')
+        content = arrayBufferToBase64(buffer)
       } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
         // For text files, read as text
         content = await file.text()
@@ -55,7 +55,7 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
       ) {
         // For DOCX, read as binary and encode
         const buffer = await file.arrayBuffer()
-        content = Buffer.from(buffer).toString('base64')
+        content = arrayBufferToBase64(buffer)
       } else {
         setError('Unsupported file format')
         return
@@ -71,6 +71,15 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
         `Failed to read file: ${err instanceof Error ? err.message : 'Unknown error'}`
       )
     }
+  }
+
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    let binary = ''
+    const bytes = new Uint8Array(buffer)
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
   }
 
   const handleFiles = (files: FileList | null) => {
