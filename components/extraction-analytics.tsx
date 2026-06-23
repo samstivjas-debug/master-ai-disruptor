@@ -8,8 +8,8 @@ interface ExtractionAnalyticsProps {
 }
 
 export function ExtractionAnalytics({ result }: ExtractionAnalyticsProps) {
-  const fieldCount = Object.keys(result.extractedData).length
-  const dataTypes = analyzeDataTypes(result.extractedData)
+  const fieldCount = Object.keys(result.keyInformation).length
+  const dataTypes = analyzeDataTypes(result.keyInformation)
 
   return (
     <div className="rounded-lg border border-border bg-card p-6 space-y-6">

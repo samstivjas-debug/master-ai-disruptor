@@ -23,39 +23,45 @@ function buildExtractionPrompt(
   fileName: string,
   content: string
 ): string {
-  const docType = getDocumentTypeFromMimeType(mimeType, fileName)
-
-  const basePrompt = `You are an intelligent document processing system. Your task is to analyze the provided document content and extract structured data from it.
+  const isImage = mimeType.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(fileName)
+  
+  const basePrompt = `You are a professional document extraction system. Analyze the provided document and extract information in a structured, professional format.
 
 Document Information:
-- Type: ${docType}
 - File Name: ${fileName}
-- MIME Type: ${mimeType}
+- Format: ${getDocumentTypeFromMimeType(mimeType, fileName)}
 
 Your task:
-1. Identify what type of document this is (invoice, receipt, contract, form, report, etc.)
-2. Extract all relevant information into a structured format
-3. Provide a confidence score (0.0-1.0) indicating how confident you are in the extraction accuracy
-4. Return the extracted data as a JSON object
+1. Identify the precise document type (invoice, receipt, contract, form, report, statement, etc.)
+2. Extract a professional 2-3 sentence summary of the document
+3. Identify and extract all key information fields with professional labels
+4. If the document contains financial data (prices, amounts, quantities):
+   - Extract all line items with descriptions, quantities, unit prices, and amounts
+   - Calculate or extract subtotal, tax, and total amounts
+   - Provide a brief financial analysis (e.g., "Total amount due is 2200.00 with 10% tax applied")
+5. Organize information into logical sections if applicable
+6. For image documents, extract all visible text content
 
-Guidelines:
-- Be thorough in extracting all visible information
-- For numeric values, preserve the original format
-- For dates, standardize to YYYY-MM-DD format
-- For amounts/prices, include both numeric and text representations if available
-- Identify and extract tables, lists, and hierarchical information
-- If information is unclear or missing, set confidence lower
-- Include metadata like page numbers or document dates if present
+Output Requirements:
+- Use professional business language only - no emojis or markdown symbols
+- Preserve all numeric values and formats from the original document
+- Standardize dates to YYYY-MM-DD format where possible
+- Create clear, descriptive field labels in Title Case
+- For financial values, include currency symbols and amounts
+- If calculating totals, show calculations clearly
+- Be thorough - extract ALL visible information
+- Provide confidence score based on clarity and completeness of information
 
 `
 
-  if (
-    mimeType.startsWith('image/') ||
-    /\.(jpg|jpeg|png|webp)$/i.test(fileName)
-  ) {
+  if (isImage) {
     return (
       basePrompt +
-      `The document is provided as a base64-encoded image. Decode and analyze it to extract information.
+      `This is an image document. Please:
+1. Extract and transcribe ALL text visible in the image
+2. Organize text in logical reading order
+3. Preserve tables, lists, and hierarchical structures
+4. Note any diagrams, logos, or important visual elements
 
 Image Content (base64):
 ${content}`
@@ -65,7 +71,7 @@ ${content}`
   if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
     return (
       basePrompt +
-      `The document is provided as base64-encoded PDF content. Analyze it to extract information.
+      `This is a PDF document. Analyze its content to extract structured information.
 
 PDF Content (base64):
 ${content}`
@@ -78,7 +84,7 @@ ${content}`
   ) {
     return (
       basePrompt +
-      `The document is provided as base64-encoded DOCX content. Analyze it to extract information.
+      `This is a Word document. Extract all content including text, tables, and important information.
 
 DOCX Content (base64):
 ${content}`
@@ -87,7 +93,7 @@ ${content}`
 
   return (
     basePrompt +
-    `The document content:
+    `Document Content:
 
 ${content}`
   )
@@ -119,28 +125,51 @@ export async function POST(request: Request) {
       const processingTime = Date.now() - startTime + 1500 // Simulate processing time
       
       return Response.json({
-        documentType: 'Invoice',
-        extractedData: {
-          invoiceNumber: 'INV-2025-001',
-          date: '2025-06-23',
-          company: {
-            from: 'ABC Company',
-            to: 'XYZ Corporation',
-          },
-          items: [
-            { description: 'Consulting Services', amount: '$1,500.00' },
-            { description: 'Software License', amount: '$500.00' },
-          ],
-          totals: {
-            subtotal: '$2,000.00',
-            tax: '$200.00',
-            total: '$2,200.00',
-          },
-          paymentTerms: 'Net 30',
+        documentType: 'Commercial Invoice',
+        summary: 'This is a commercial invoice from ABC Company to XYZ Corporation for professional services and software licensing. The total amount due is 2200.00 USD with 10% tax applied, due within 30 days of invoice date.',
+        keyInformation: {
+          'Invoice Number': 'INV-2025-001',
+          'Invoice Date': '2025-06-23',
+          'Issuing Company': 'ABC Company',
+          'Billing To': 'XYZ Corporation',
+          'Payment Terms': 'Net 30 days',
+          'Due Date': '2025-07-23',
+          'Currency': 'USD',
         },
-        confidence: 0.72,
+        sections: {
+          'Billing Information': {
+            'From Company': 'ABC Company',
+            'From Address': '123 Business Street, New York, NY 10001',
+            'To Company': 'XYZ Corporation',
+            'To Address': '456 Commerce Avenue, Los Angeles, CA 90001',
+          },
+        },
+        financialData: {
+          hasFinancialData: true,
+          items: [
+            {
+              description: 'Consulting Services',
+              quantity: '40',
+              unitPrice: '37.50',
+              amount: '1500.00',
+            },
+            {
+              description: 'Software License - Annual',
+              quantity: '1',
+              unitPrice: '500.00',
+              amount: '500.00',
+            },
+          ],
+          subtotal: '2000.00',
+          tax: '200.00',
+          total: '2200.00',
+          analysis: 'Invoice includes two line items totaling 2000.00 USD in subtotal. A 10% tax of 200.00 USD has been applied, resulting in a total amount due of 2200.00 USD. Payment is due within 30 days.',
+        },
+        metadata: {
+          dateExtracted: new Date().toISOString().split('T')[0],
+        },
+        confidence: 0.88,
         processingTime,
-        rawText: '[DEMO MODE] Upload a real file with ANTHROPIC_API_KEY configured for actual AI processing.',
       })
     }
 
