@@ -116,65 +116,42 @@ export async function POST(request: Request) {
     )
 
     // Use AI to extract structured data from the document content
-    const apiKey = process.env.ANTHROPIC_API_KEY
+    // Try main key first, then check numbered variants
+    let apiKey = process.env.ANTHROPIC_API_KEY
+    let keySource = 'ANTHROPIC_API_KEY'
     
-    // Demo mode if API key is missing - returns mock data so the UI works
     if (!apiKey) {
-      console.warn('[DEMO MODE] ANTHROPIC_API_KEY not configured. Returning demo response.')
-      
-      const processingTime = Date.now() - startTime + 1500 // Simulate processing time
-      
-      return Response.json({
-        documentType: 'Commercial Invoice',
-        summary: 'This is a commercial invoice from ABC Company to XYZ Corporation for professional services and software licensing. The total amount due is 2200.00 USD with 10% tax applied, due within 30 days of invoice date.',
-        keyInformation: {
-          'Invoice Number': 'INV-2025-001',
-          'Invoice Date': '2025-06-23',
-          'Issuing Company': 'ABC Company',
-          'Billing To': 'XYZ Corporation',
-          'Payment Terms': 'Net 30 days',
-          'Due Date': '2025-07-23',
-          'Currency': 'USD',
-        },
-        sections: {
-          'Billing Information': {
-            'From Company': 'ABC Company',
-            'From Address': '123 Business Street, New York, NY 10001',
-            'To Company': 'XYZ Corporation',
-            'To Address': '456 Commerce Avenue, Los Angeles, CA 90001',
-          },
-        },
-        financialData: {
-          hasFinancialData: true,
-          items: [
-            {
-              description: 'Consulting Services',
-              quantity: '40',
-              unitPrice: '37.50',
-              amount: '1500.00',
-            },
-            {
-              description: 'Software License - Annual',
-              quantity: '1',
-              unitPrice: '500.00',
-              amount: '500.00',
-            },
-          ],
-          subtotal: '2000.00',
-          tax: '200.00',
-          total: '2200.00',
-          analysis: 'Invoice includes two line items totaling 2000.00 USD in subtotal. A 10% tax of 200.00 USD has been applied, resulting in a total amount due of 2200.00 USD. Payment is due within 30 days.',
-        },
-        metadata: {
-          dateExtracted: new Date().toISOString().split('T')[0],
-        },
-        confidence: 0.88,
-        processingTime,
-      })
+      // Check for numbered variants that may be set by the system
+      // Check a wider range since the system may add more variants
+      for (let i = 1; i <= 10; i++) {
+        const variantKey = `ANTHROPIC_API_KEY_${i}`
+        const key = (process.env as Record<string, string | undefined>)[variantKey]
+        if (key && key && key.length > 0) {
+          apiKey = key
+          keySource = variantKey
+          console.log(`[v0] Found API key from ${variantKey}, length: ${apiKey.length}`)
+          break
+        }
+      }
+    }
+    
+    if (!apiKey || apiKey.length === 0) {
+      const allKeys = Object.keys(process.env).filter(k => k.includes('ANTHROPIC'))
+      console.log('[v0] Available env keys:', allKeys)
+      throw new Error('ANTHROPIC_API_KEY environment variable is not configured. Please add your API key to the project settings.')
     }
 
+    // Strip quotes if present (environment variables sometimes have quotes)
+    let cleanApiKey = apiKey.trim()
+    if ((cleanApiKey.startsWith('"') && cleanApiKey.endsWith('"')) ||
+        (cleanApiKey.startsWith("'") && cleanApiKey.endsWith("'"))) {
+      cleanApiKey = cleanApiKey.slice(1, -1)
+    }
+
+    console.log(`[v0] Using ${keySource} (length: ${cleanApiKey.length}, valid: ${cleanApiKey.startsWith('sk-ant-')})`)
+
     const result = await generateObject({
-      model: anthropic('claude-3-5-sonnet-20241022', { apiKey }),
+      model: anthropic('claude-3-5-sonnet-20241022', { apiKey: cleanApiKey }),
       schema: ExtractionResultSchema,
       prompt,
     })
