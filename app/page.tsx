@@ -39,12 +39,14 @@ export default function Page() {
         }),
       })
 
+      const responseData = await response.json()
+
       if (!response.ok) {
-        throw new Error(`Processing failed: ${response.statusText}`)
+        const errorMessage = responseData.error || `Processing failed: ${response.statusText}`
+        throw new Error(errorMessage)
       }
 
-      const extractedResult = await response.json()
-      setResult(extractedResult)
+      setResult(responseData)
       setProcessingState('success')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error occurred'
