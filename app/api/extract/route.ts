@@ -1,5 +1,4 @@
 import { generateObject } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
 import { ExtractionResultSchema, ProcessingRequestSchema } from '@/lib/schemas'
 
 function getDocumentTypeFromMimeType(mimeType: string, fileName: string): string {
@@ -110,7 +109,7 @@ export async function POST(request: Request) {
 
     // Use AI to extract structured data from the document content
     const result = await generateObject({
-      model: anthropic('claude-3-5-sonnet-20241022'),
+      model: 'anthropic/claude-3-5-sonnet-20241022',
       schema: ExtractionResultSchema,
       prompt,
     })
