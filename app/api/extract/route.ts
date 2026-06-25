@@ -123,11 +123,14 @@ export async function POST(request: Request) {
     const getCleanApiKey = (key: string | undefined): string | null => {
       if (!key || key.length === 0) return null
       let cleanKey = key.trim()
+      // Remove surrounding quotes (single or double)
       if ((cleanKey.startsWith('"') && cleanKey.endsWith('"')) ||
           (cleanKey.startsWith("'") && cleanKey.endsWith("'"))) {
         cleanKey = cleanKey.slice(1, -1)
       }
-      return cleanKey
+      // Extra trim in case quotes had spaces
+      cleanKey = cleanKey.trim()
+      return cleanKey.length > 0 ? cleanKey : null
     }
 
     const findKey = (baseName: string): string | null => {
@@ -149,26 +152,9 @@ export async function POST(request: Request) {
     let result
     let provider = 'unknown'
 
-    console.log('[v0] Available keys:', Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('GOOGLE') || k.includes('OPENROUTER')))
+    console.log('[v0] Available keys:', Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('GOOGLE') || k.includes('OPENROUTER') || k.includes('ANTHROPIC')))
 
-    // Try OpenAI first
-    const openaiKey = findKey('OPENAI_API_KEY')
-    console.log('[v0] OpenAI key found:', !!openaiKey)
-    if (openaiKey) {
-      try {
-        console.log('[v0] Using OpenAI provider')
-        result = await generateObject({
-          model: openai('gpt-4o', { apiKey: openaiKey }),
-          schema: ExtractionResultSchema,
-          prompt,
-        })
-        provider = 'OpenAI (GPT-4o)'
-      } catch (err) {
-        console.log('[v0] OpenAI failed:', err instanceof Error ? err.message : 'Unknown error')
-      }
-    }
-
-    // Try Google if OpenAI failed
+    // Try Google AI Studio first 
     if (!result) {
       let googleKey = findKey('GOOGLE_AI_STUDIO_API_KEY')
       if (!googleKey) googleKey = findKey('GOOGLE_API_KEY')
@@ -181,25 +167,45 @@ export async function POST(request: Request) {
             schema: ExtractionResultSchema,
             prompt,
           })
-          provider = 'Google AI (Gemini)'
+          provider = 'Google AI (Gemini 1.5 Flash)'
         } catch (err) {
           console.log('[v0] Google AI failed:', err instanceof Error ? err.message : 'Unknown error')
         }
       }
     }
 
-    // Try Anthropic as fallback
+    // Try OpenAI 
+    if (!result) {
+      const openaiKey = findKey('OPENAI_API_KEY')
+      console.log('[v0] OpenAI key found:', !!openaiKey, 'key length:', openaiKey?.length)
+      if (openaiKey) {
+        try {
+          console.log('[v0] Using OpenAI provider')
+          result = await generateObject({
+            model: openai('gpt-4o-mini', { apiKey: openaiKey }),
+            schema: ExtractionResultSchema,
+            prompt,
+          })
+          provider = 'OpenAI (GPT-4o Mini)'
+        } catch (err) {
+          console.log('[v0] OpenAI failed:', err instanceof Error ? err.message : 'Unknown error')
+        }
+      }
+    }
+
+    // Try Anthropic 
     if (!result) {
       const anthropicKey = findKey('ANTHROPIC_API_KEY')
+      console.log('[v0] Anthropic key found:', !!anthropicKey)
       if (anthropicKey) {
         try {
           console.log('[v0] Using Anthropic provider')
           result = await generateObject({
-            model: anthropic('claude-3-5-sonnet-20241022', { apiKey: anthropicKey }),
+            model: anthropic('claude-3-5-sonnet-20241022'),
             schema: ExtractionResultSchema,
             prompt,
           })
-          provider = 'Anthropic'
+          provider = 'Anthropic (Claude 3.5 Sonnet)'
         } catch (err) {
           console.log('[v0] Anthropic failed:', err instanceof Error ? err.message : 'Unknown error')
         }
@@ -212,16 +218,15 @@ export async function POST(request: Request) {
       if (openrouterKey) {
         try {
           console.log('[v0] Using OpenRouter provider')
-          // OpenRouter works through OpenAI-compatible endpoint
           result = await generateObject({
-            model: openai('openrouter/anthropic/claude-3.5-sonnet', {
+            model: openai('anthropic/claude-3.5-sonnet', {
               apiKey: openrouterKey,
               baseURL: 'https://openrouter.ai/api/v1',
             }),
             schema: ExtractionResultSchema,
             prompt,
           })
-          provider = 'OpenRouter'
+          provider = 'OpenRouter (Claude 3.5)'
         } catch (err) {
           console.log('[v0] OpenRouter failed:', err instanceof Error ? err.message : 'Unknown error')
         }
