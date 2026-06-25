@@ -1,14 +1,11 @@
 import { z } from 'zod'
 
 export const ExtractionResultSchema = z.object({
-  documentType: z.string(),
-  summary: z.string(),
-  keyInformation: z.string(),
-  sections: z.string().optional(),
-  financialData: z.string().optional(),
-  extractedText: z.string().optional(),
-  confidence: z.number().min(0).max(1),
-  processingTime: z.number(),
+  documentType: z.string().describe('Type of document (invoice, receipt, form, etc.)'),
+  extractedData: z.record(z.unknown()).describe('Key-value pairs of extracted information'),
+  confidence: z.number().min(0).max(1).describe('Confidence score of extraction'),
+  processingTime: z.number().describe('Processing time in milliseconds'),
+  rawText: z.string().optional().describe('Raw text extracted from document'),
 })
 
 export type ExtractionResult = z.infer<typeof ExtractionResultSchema>

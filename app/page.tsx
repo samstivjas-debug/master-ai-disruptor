@@ -39,14 +39,12 @@ export default function Page() {
         }),
       })
 
-      const responseData = await response.json()
-
       if (!response.ok) {
-        const errorMessage = responseData.error || `Processing failed: ${response.statusText}`
-        throw new Error(errorMessage)
+        throw new Error(`Processing failed: ${response.statusText}`)
       }
 
-      setResult(responseData)
+      const extractedResult = await response.json()
+      setResult(extractedResult)
       setProcessingState('success')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error occurred'
@@ -236,7 +234,7 @@ export default function Page() {
             <div>
               <h3 className="font-semibold text-foreground mb-2">Technology</h3>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>Multi-AI Provider Support</li>
+                <li>Claude 3.5 Sonnet</li>
                 <li>Next.js 16</li>
                 <li>Vercel AI SDK</li>
               </ul>

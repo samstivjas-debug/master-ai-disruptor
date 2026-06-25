@@ -23,15 +23,6 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
   const supportedFormats = ['.pdf', '.txt', '.docx', '.jpg', '.jpeg', '.png', '.webp']
   const maxFileSize = 10 * 1024 * 1024 // 10MB
 
-  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-    let binary = ''
-    const bytes = new Uint8Array(buffer)
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i])
-    }
-    return btoa(binary)
-  }
-
   const handleFileRead = async (file: File) => {
     setError(null)
 
@@ -50,11 +41,11 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
       ) {
         // For PDFs, convert to base64 for Claude's vision capability
         const buffer = await file.arrayBuffer()
-        content = arrayBufferToBase64(buffer)
+        content = Buffer.from(buffer).toString('base64')
       } else if (file.type.startsWith('image/')) {
         // For images, convert to base64
         const buffer = await file.arrayBuffer()
-        content = arrayBufferToBase64(buffer)
+        content = Buffer.from(buffer).toString('base64')
       } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
         // For text files, read as text
         content = await file.text()
@@ -64,7 +55,7 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
       ) {
         // For DOCX, read as binary and encode
         const buffer = await file.arrayBuffer()
-        content = arrayBufferToBase64(buffer)
+        content = Buffer.from(buffer).toString('base64')
       } else {
         setError('Unsupported file format')
         return
@@ -109,22 +100,15 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
       <div
         onDragOver={(e) => {
           e.preventDefault()
-          e.stopPropagation()
           setIsDragOver(true)
         }}
-        onDragLeave={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setIsDragOver(false)
-        }}
+        onDragLeave={() => setIsDragOver(false)}
         onDrop={(e) => {
           e.preventDefault()
-          e.stopPropagation()
           setIsDragOver(false)
           const file = e.dataTransfer.files[0]
           if (file) handleFileRead(file)
         }}
-        onClick={() => !disabled && fileInputRef.current?.click()}
         className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer overflow-hidden ${
           isDragOver
             ? 'border-primary bg-gradient-to-br from-primary/15 to-primary/5'
@@ -144,24 +128,18 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
           accept={supportedFormats.join(',')}
           className="hidden"
           disabled={disabled}
-          onClick={(e) => e.stopPropagation()}
         />
 
-        <div className="relative z-10 pointer-events-none">
+        <div className="relative z-10">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
             <FileUp className="w-8 h-8 text-primary" />
           </div>
           <h3 className="text-2xl font-bold text-foreground mb-2">Drop your document here</h3>
           <p className="text-muted-foreground mb-6">or click below to browse</p>
           <Button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              fileInputRef.current?.click()
-            }}
+            onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all pointer-events-auto"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all"
           >
             {disabled ? 'Processing...' : 'Select Document'}
           </Button>
