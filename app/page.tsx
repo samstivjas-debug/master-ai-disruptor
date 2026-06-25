@@ -236,7 +236,7 @@ export default function Page() {
             <div>
               <h3 className="font-semibold text-foreground mb-2">Technology</h3>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>Claude 3.5 Sonnet</li>
+                <li>Multi-AI Provider Support</li>
                 <li>Next.js 16</li>
                 <li>Vercel AI SDK</li>
               </ul>

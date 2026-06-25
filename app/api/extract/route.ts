@@ -1,5 +1,7 @@
 import { generateObject } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
+import { openai } from '@ai-sdk/openai'
+import { google } from '@ai-sdk/google'
 import { z } from 'zod'
 import { ExtractionResultSchema, ProcessingRequestSchema } from '@/lib/schemas'
 
@@ -116,45 +118,121 @@ export async function POST(request: Request) {
     )
 
     // Use AI to extract structured data from the document content
-    // Try main key first, then check numbered variants
-    let apiKey = process.env.ANTHROPIC_API_KEY
-    let keySource = 'ANTHROPIC_API_KEY'
+    // Support multiple AI providers with automatic fallback
     
-    if (!apiKey) {
-      // Check for numbered variants that may be set by the system
-      // Check a wider range since the system may add more variants
+    const getCleanApiKey = (key: string | undefined): string | null => {
+      if (!key || key.length === 0) return null
+      let cleanKey = key.trim()
+      if ((cleanKey.startsWith('"') && cleanKey.endsWith('"')) ||
+          (cleanKey.startsWith("'") && cleanKey.endsWith("'"))) {
+        cleanKey = cleanKey.slice(1, -1)
+      }
+      return cleanKey
+    }
+
+    const findKey = (baseName: string): string | null => {
+      // Try main key
+      const mainKey = getCleanApiKey(process.env[baseName])
+      if (mainKey) return mainKey
+      
+      // Try numbered variants
       for (let i = 1; i <= 10; i++) {
-        const variantKey = `ANTHROPIC_API_KEY_${i}`
-        const key = (process.env as Record<string, string | undefined>)[variantKey]
-        if (key && key && key.length > 0) {
-          apiKey = key
-          keySource = variantKey
-          console.log(`[v0] Found API key from ${variantKey}, length: ${apiKey.length}`)
-          break
+        const variantKey = getCleanApiKey(process.env[`${baseName}_${i}`])
+        if (variantKey) {
+          console.log(`[v0] Found ${baseName}_${i}`)
+          return variantKey
+        }
+      }
+      return null
+    }
+
+    let result
+    let provider = 'unknown'
+
+    console.log('[v0] Available keys:', Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('GOOGLE') || k.includes('OPENROUTER')))
+
+    // Try OpenAI first
+    const openaiKey = findKey('OPENAI_API_KEY')
+    console.log('[v0] OpenAI key found:', !!openaiKey)
+    if (openaiKey) {
+      try {
+        console.log('[v0] Using OpenAI provider')
+        result = await generateObject({
+          model: openai('gpt-4o', { apiKey: openaiKey }),
+          schema: ExtractionResultSchema,
+          prompt,
+        })
+        provider = 'OpenAI (GPT-4o)'
+      } catch (err) {
+        console.log('[v0] OpenAI failed:', err instanceof Error ? err.message : 'Unknown error')
+      }
+    }
+
+    // Try Google if OpenAI failed
+    if (!result) {
+      let googleKey = findKey('GOOGLE_AI_STUDIO_API_KEY')
+      if (!googleKey) googleKey = findKey('GOOGLE_API_KEY')
+      
+      if (googleKey) {
+        try {
+          console.log('[v0] Using Google AI provider')
+          result = await generateObject({
+            model: google('gemini-1.5-flash', { apiKey: googleKey }),
+            schema: ExtractionResultSchema,
+            prompt,
+          })
+          provider = 'Google AI (Gemini)'
+        } catch (err) {
+          console.log('[v0] Google AI failed:', err instanceof Error ? err.message : 'Unknown error')
         }
       }
     }
-    
-    if (!apiKey || apiKey.length === 0) {
-      const allKeys = Object.keys(process.env).filter(k => k.includes('ANTHROPIC'))
-      console.log('[v0] Available env keys:', allKeys)
-      throw new Error('ANTHROPIC_API_KEY environment variable is not configured. Please add your API key to the project settings.')
+
+    // Try Anthropic as fallback
+    if (!result) {
+      const anthropicKey = findKey('ANTHROPIC_API_KEY')
+      if (anthropicKey) {
+        try {
+          console.log('[v0] Using Anthropic provider')
+          result = await generateObject({
+            model: anthropic('claude-3-5-sonnet-20241022', { apiKey: anthropicKey }),
+            schema: ExtractionResultSchema,
+            prompt,
+          })
+          provider = 'Anthropic'
+        } catch (err) {
+          console.log('[v0] Anthropic failed:', err instanceof Error ? err.message : 'Unknown error')
+        }
+      }
     }
 
-    // Strip quotes if present (environment variables sometimes have quotes)
-    let cleanApiKey = apiKey.trim()
-    if ((cleanApiKey.startsWith('"') && cleanApiKey.endsWith('"')) ||
-        (cleanApiKey.startsWith("'") && cleanApiKey.endsWith("'"))) {
-      cleanApiKey = cleanApiKey.slice(1, -1)
+    // Try OpenRouter as last resort
+    if (!result) {
+      const openrouterKey = findKey('OPENROUTER_API_KEY')
+      if (openrouterKey) {
+        try {
+          console.log('[v0] Using OpenRouter provider')
+          // OpenRouter works through OpenAI-compatible endpoint
+          result = await generateObject({
+            model: openai('openrouter/anthropic/claude-3.5-sonnet', {
+              apiKey: openrouterKey,
+              baseURL: 'https://openrouter.ai/api/v1',
+            }),
+            schema: ExtractionResultSchema,
+            prompt,
+          })
+          provider = 'OpenRouter'
+        } catch (err) {
+          console.log('[v0] OpenRouter failed:', err instanceof Error ? err.message : 'Unknown error')
+        }
+      }
     }
 
-    console.log(`[v0] Using ${keySource} (length: ${cleanApiKey.length}, valid: ${cleanApiKey.startsWith('sk-ant-')})`)
+    if (!result) {
+      throw new Error('No AI provider configured. Please add at least one API key (OpenAI, Google AI, Anthropic, or OpenRouter).')
+    }
 
-    const result = await generateObject({
-      model: anthropic('claude-3-5-sonnet-20241022', { apiKey: cleanApiKey }),
-      schema: ExtractionResultSchema,
-      prompt,
-    })
+    console.log(`[v0] Successfully processed with ${provider}`)
 
     const processingTime = Date.now() - startTime
 

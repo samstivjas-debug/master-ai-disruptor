@@ -109,15 +109,22 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
       <div
         onDragOver={(e) => {
           e.preventDefault()
+          e.stopPropagation()
           setIsDragOver(true)
         }}
-        onDragLeave={() => setIsDragOver(false)}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDragOver(false)
+        }}
         onDrop={(e) => {
           e.preventDefault()
+          e.stopPropagation()
           setIsDragOver(false)
           const file = e.dataTransfer.files[0]
           if (file) handleFileRead(file)
         }}
+        onClick={() => !disabled && fileInputRef.current?.click()}
         className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer overflow-hidden ${
           isDragOver
             ? 'border-primary bg-gradient-to-br from-primary/15 to-primary/5'
@@ -137,18 +144,24 @@ export function DocumentUpload({ onDocumentSelected, disabled }: DocumentUploadP
           accept={supportedFormats.join(',')}
           className="hidden"
           disabled={disabled}
+          onClick={(e) => e.stopPropagation()}
         />
 
-        <div className="relative z-10">
+        <div className="relative z-10 pointer-events-none">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
             <FileUp className="w-8 h-8 text-primary" />
           </div>
           <h3 className="text-2xl font-bold text-foreground mb-2">Drop your document here</h3>
           <p className="text-muted-foreground mb-6">or click below to browse</p>
           <Button
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              fileInputRef.current?.click()
+            }}
             disabled={disabled}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all pointer-events-auto"
           >
             {disabled ? 'Processing...' : 'Select Document'}
           </Button>
